@@ -11,8 +11,8 @@ use strict;
 use warnings;
 
 package Dist::Zilla::App::Command::pot;
-BEGIN {
-  $Dist::Zilla::App::Command::pot::VERSION = '1.110340';
+{
+  $Dist::Zilla::App::Command::pot::VERSION = '1.112680';
 }
 # ABSTRACT: update i18n messages.pot file with new strings
 
@@ -32,7 +32,8 @@ sub opt_spec {
 
     return (
         [],
-        [ "--potfile|p", "location of the messages.pot to update" ]
+        [ "output|o=s", "location of the messages.pot to update" ],
+        [ "input|i=s@", "location of the messages.pot to update" ],
     );
 }
 
@@ -49,39 +50,42 @@ sub execute {
         grep { $_->name =~ /\.pm$/ }
         grep { $_->isa( "Dist::Zilla::File::OnDisk" ) }
         $zilla->files->flatten;
+    @pmfiles = grep { $_->_original_name ~~ @{ $opts->{input} } } @pmfiles
+        if $opts->{input};
     my $tmp = File::Temp->new( UNLINK=>1 );
     $tmp->print( map { $_->name . "\n" } @pmfiles );
     $tmp->close;
 
     # no messages.pot found, prompting user
-    if ( not defined $opts->{potfile} ) {
+    if ( not defined $opts->{output} ) {
         # try to find existing messages.pot
         $zilla->log( "Trying to find a messages.pot file...");
-        ($opts->{potfile}) =
+        ($opts->{output}) =
             map  { $_->name }
             grep { $_->name =~ /messages\.pot$/ }
             grep { $_->isa( "Dist::Zilla::File::OnDisk" ) }
             $zilla->files->flatten;
-        if ( defined $opts->{potfile} ) {
-            $zilla->log( "Found [$opts->{potfile}]" );
+        if ( defined $opts->{output} ) {
+            $zilla->log( "Found [$opts->{output}]" );
         } else {
             $zilla->log( "No messages.pot found - enter your own." );
             my $default = "lib/LocaleData/$dist-messages.pot";
-            $opts->{potfile} = prompt( "messages.pot to use: ", -d => $default );
+            $opts->{output} = prompt( "messages.pot to use: ", -d => $default );
         }
     }
 
     # update pot file
-    unlink $opts->{potfile};
-    file($opts->{potfile})->parent->mkpath;
+    unlink $opts->{output};
+    file($opts->{output})->parent->mkpath;
     $zilla->log( "Running xgettext..." );
     system(
         "xgettext",
         "--keyword=T",
+        "--keyword=__",
         "--from-code=utf-8",
         "--package-name=$dist",
         "--copyright-holder='$copy'",
-        "-o", $opts->{potfile},
+        "-o", $opts->{output},
         "-f", $tmp
     ) == 0 or die "xgettext exited with return code " . ($? >> 8);
 }
@@ -97,7 +101,7 @@ Dist::Zilla::App::Command::pot - update i18n messages.pot file with new strings
 
 =head1 VERSION
 
-version 1.110340
+version 1.112680
 
 =head1 SYNOPSIS
 
@@ -139,7 +143,7 @@ L<http://cpanratings.perl.org/d/Dist-Zilla-App-Command-pot>
 
 =head1 AUTHOR
 
-  Jerome Quelin <jquelin@gmail.com>
+Jerome Quelin <jquelin@gmail.com>
 
 =head1 COPYRIGHT AND LICENSE
 
